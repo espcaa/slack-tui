@@ -1,65 +1,93 @@
-package components
+package sidebar
 
 import (
-	"strings"
-
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type Sidebar struct {
-	Items         []string
-	Selected      int
-	Width         int
-	style         lipgloss.Style
-	itemStyle     lipgloss.Style
-	selectedStyle lipgloss.Style
+	items    []string
+	selected int
+	viewport viewport.Model
 }
 
-func NewSidebar() Sidebar {
-	return Sidebar{
-		Items:    []string{"# general", "# random", "# dev"},
-		Selected: 0,
-		Width:    20,
-		style: lipgloss.NewStyle().
-			Width(20).
-			Border(lipgloss.RoundedBorder()).
-			Padding(1, 1),
-		itemStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")),
-		selectedStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("229")).
-			Background(lipgloss.Color("57")).
-			Bold(true),
+func NewSidebar(items []string) *Sidebar {
+	return &Sidebar{
+		items:    items,
+		selected: 0,
 	}
 }
 
-func (s Sidebar) Update(msg tea.Msg) (Sidebar, tea.Cmd) {
+func (s *Sidebar) SelectNext() {
+	if len(s.items) == 0 {
+		return
+	}
+	s.selected = (s.selected + 1) % len(s.items)
+}
+
+func (s *Sidebar) SelectPrevious() {
+	if len(s.items) == 0 {
+		return
+	}
+	s.selected = (s.selected - 1 + len(s.items)) % len(s.items)
+}
+
+func (s *Sidebar) GetSelected() string {
+	if len(s.items) == 0 {
+		return ""
+	}
+	return s.items[s.selected]
+}
+
+func (s *Sidebar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "up":
-			if s.Selected > 0 {
-				s.Selected--
-			}
-		case "down":
-			if s.Selected < len(s.Items)-1 {
-				s.Selected++
-			}
+		case "j", "down":
+			s.SelectNext()
+		case "k", "up":
+			s.SelectPrevious()
 		}
 	}
-	return s, nil
+
+	// Update the viewport if necessary
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+		s.viewport.Width = msg.Width / 4
+		s.viewport.Height = msg.Height
+	}
+
+	var cmd tea.Cmd
+	s.viewport, cmd = s.viewport.Update(msg)
+	return s, cmd
 }
 
-func (s Sidebar) View() string {
-	var b strings.Builder
-	for i, item := range s.Items {
-		if i == s.Selected {
-			b.WriteString(s.selectedStyle.Render(item))
+var sidebarStyle = lipgloss.NewStyle().
+	BorderRight(true).
+	BorderStyle(lipgloss.NormalBorder()).
+	BorderForeground(lipgloss.Color("2"))
+
+func (s *Sidebar) View() string {
+	var output string
+	for i, item := range s.items {
+		if i == s.selected {
+			output += "> " + item + "\n"
 		} else {
-			b.WriteString(s.itemStyle.Render(item))
+			output += "  " + item + "\n"
 		}
-		b.WriteString("\n")
 	}
-	return s.style.Render(b.String())
+	return output + s.viewport.View()
+}
+func (s *Sidebar) SetSize(width, height int) {
+	s.viewport.Width = width
+	s.viewport.Height = height
+}
+
+func (s *Sidebar) SetViewportSize(width, height int) {
+	s.viewport.Width = width
+	s.viewport.Height = height
+}
+
+func (s *Sidebar) Init() tea.Cmd {
+	return nil
 }

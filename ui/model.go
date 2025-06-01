@@ -46,18 +46,14 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mainAct, cmd := m.mainAct.Update(msg)
 		m.mainAct = mainAct
 		// example: switch to settings on "s"
-		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "s" {
-			m.currentView = "settings"
-		}
+
 		return m, cmd
 
 	case "settings":
 		settings, cmd := m.settings.Update(msg)
 		m.settings = settings
 		// example: back to main on "b"
-		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "b" {
-			m.currentView = "main"
-		}
+
 		return m, cmd
 	}
 	return m, nil

@@ -7,7 +7,8 @@ import (
 )
 
 type Config struct {
-	SlackToken string
+	SlackToken   string
+	WorkspaceURL string
 }
 
 func ConfigPath() (string, error) {

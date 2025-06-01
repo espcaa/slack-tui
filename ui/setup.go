@@ -15,26 +15,34 @@ import (
 )
 
 type SetupModel struct {
-	textInput textinput.Model
-	progress  progress.Model
-	done      bool
-	loading   bool
-	errorText string
+	textInput      textinput.Model
+	workspaceInput textinput.Model
+	progress       progress.Model
+	done           bool
+	loading        bool
+	errorText      string
+	focusIdx       int
 }
 
 func NewSetupModel() SetupModel {
+	wi := textinput.New()
+	wi.Placeholder = "Enter your workspace URL"
+	wi.CharLimit = 156
+	wi.Width = 30
+
 	ti := textinput.New()
 	ti.Placeholder = "Enter something"
-	ti.Focus()
 	ti.CharLimit = 156
 	// Set max width for the text input
 	ti.Width = 30
+	ti.Focus()
 
 	p := progress.New(progress.WithSolidFill("3"))
 
 	return SetupModel{
-		textInput: ti,
-		progress:  p,
+		textInput:      ti,
+		workspaceInput: wi,
+		progress:       p,
 	}
 }
 
@@ -47,9 +55,9 @@ type AuthTestResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-func checkSlackToken(token string) tea.Msg {
+func checkSlackToken(token string, url string) tea.Msg {
 	client := http.Client{Timeout: 5 * time.Second}
-	req, err := http.NewRequest("GET", "https://slack.com/api/auth.test", nil)
+	req, err := http.NewRequest("GET", url+"/api/auth.test", nil)
 	if err != nil {
 		return errMsg{err}
 	}
@@ -84,6 +92,10 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "tab", "down":
+			m.focusIdx = (m.focusIdx + 1) % 2
+		case "shift+tab", "up":
+			m.focusIdx = (m.focusIdx + 1) % 2
 		case "ctrl+c", "esc":
 			return m, tea.Quit
 		case "enter":
@@ -91,14 +103,14 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 			m.progress.SetPercent(0.0)
 			m.loading = true
 			token := m.textInput.Value()
-			if token == "" {
-				m.errorText = "Token cannot be empty."
+			if token == "" || m.workspaceInput.Value() == "" || m.workspaceInput.Value() == "" && token == "" {
+				m.errorText = "Token/Workspace URL cannot be empty."
 				m.loading = false
 				return m, nil
 			}
 			m.errorText = ""
 			return m, tea.Batch(tickCmd(), func() tea.Msg {
-				return checkSlackToken(token)
+				return checkSlackToken(token, m.workspaceInput.Value())
 			})
 
 		}
@@ -114,6 +126,7 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 			}
 		}
 		cfg.SlackToken = token
+		cfg.WorkspaceURL = m.workspaceInput.Value()
 		if err := config.SaveConfig(cfg); err != nil {
 			return m, func() tea.Msg {
 				return errMsg{fmt.Errorf("failed to save config: %w", err)}
@@ -133,8 +146,17 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 
 	case errMsg:
 		m.done = false
-		m.errorText = msg.err.Error()
+		m.errorText = "A network error occured (This is either due to no or a bad internet connection, or an invalid token/workspace url)."
 	}
+
+	m.textInput.Blur()
+	m.workspaceInput.Blur()
+	if m.focusIdx == 0 {
+		m.textInput.Focus()
+	} else {
+		m.workspaceInput.Focus()
+	}
+	m.workspaceInput, cmd = m.workspaceInput.Update(msg)
 
 	m.textInput, cmd = m.textInput.Update(msg)
 	if m.loading {
@@ -182,6 +204,8 @@ func (m SetupModel) View() string {
 		fancystyle.Render("Welcome to Slack TUI!"),
 		subtitlestyle.Render("Please enter your Slack user token to get started:"),
 		style.Render(m.textInput.View()),
+		subtitlestyle.Render("And your slack workspace URL (e.g., https://yourworkspace.slack.com):"),
+		style.Render(m.workspaceInput.View()),
 		fmt.Sprintf("Press %s to continue.", keyStyle.Render("Enter")),
 		errorStyle.Render(m.errorText),
 	)
