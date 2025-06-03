@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"slacktui/config"
@@ -15,24 +16,25 @@ import (
 )
 
 type SetupModel struct {
-	textInput      textinput.Model
-	workspaceInput textinput.Model
-	progress       progress.Model
-	done           bool
-	loading        bool
-	errorText      string
-	focusIdx       int
+	textInput    textinput.Model
+	progress     progress.Model
+	done         bool
+	loading      bool
+	errorText    string
+	width        int
+	checkinginfo bool
+}
+
+var tempData struct {
+	Userworkspace string
+	Usertoken     string
+	Userusername  string
+	UserteamID    string
 }
 
 func NewSetupModel() SetupModel {
-	wi := textinput.New()
-	wi.Placeholder = "Enter your workspace URL"
-	wi.CharLimit = 156
-	wi.Width = 30
-
 	ti := textinput.New()
-	ti.Placeholder = "Enter something"
-	ti.CharLimit = 156
+	ti.Placeholder = "Your magic string here!"
 	// Set max width for the text input
 	ti.Width = 30
 	ti.Focus()
@@ -40,9 +42,8 @@ func NewSetupModel() SetupModel {
 	p := progress.New(progress.WithSolidFill("3"))
 
 	return SetupModel{
-		textInput:      ti,
-		workspaceInput: wi,
-		progress:       p,
+		textInput: ti,
+		progress:  p,
 	}
 }
 
@@ -51,17 +52,36 @@ func (m SetupModel) Init() tea.Cmd {
 }
 
 type AuthTestResponse struct {
-	Ok    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	Ok                  bool   `json:"ok"`
+	URL                 string `json:"url"`
+	Team                string `json:"team"`
+	User                string `json:"user"`
+	TeamID              string `json:"team_id"`
+	UserID              string `json:"user_id"`
+	IsEnterpriseInstall bool   `json:"is_enterprise_install"`
+	Error               string `json:"error,omitempty"`
 }
 
-func checkSlackToken(token string, url string) tea.Msg {
+func checkSlackToken(input string) tea.Msg {
+	// Split the input string into cookies and token
+	cookies := ""
+	token := ""
+
+	parts := strings.Split(input, "||")
+	if len(parts) == 2 {
+		cookies = parts[0]
+		token = parts[1]
+	} else if len(parts) == 1 {
+		return errMsg{fmt.Errorf("Magic string is invalid")}
+	}
+
 	client := http.Client{Timeout: 5 * time.Second}
-	req, err := http.NewRequest("GET", url+"/api/auth.test", nil)
+	req, err := http.NewRequest("GET", "https://slack.com/api/auth.test", nil)
 	if err != nil {
 		return errMsg{err}
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Cookie", cookies)
 	resp, err := client.Do(req)
 	if err != nil {
 		return errMsg{err}
@@ -69,14 +89,21 @@ func checkSlackToken(token string, url string) tea.Msg {
 	defer resp.Body.Close()
 
 	var result AuthTestResponse
+
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return errMsg{err}
 	}
 
 	if result.Ok {
+		// If the response is ok, we can save the token, workspace, and username
+		tempData.Usertoken = parts[1]
+		tempData.Userworkspace = result.Team
+		tempData.Userusername = result.User
+		tempData.UserteamID = result.TeamID
+
 		return successMsg{}
 	}
-	return errMsg{fmt.Errorf(result.Error)}
+	return errMsg{fmt.Errorf("A network error occured. Either your magic string is invalid or your internet connection is poor/unavailable.\nError: %s", result.Error)}
 }
 
 type errMsg struct{ err error }
@@ -89,35 +116,31 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.textInput.Width = msg.Width - 10
+		m.progress.Width = msg.Width - 10
+		m.width = msg.Width
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "down":
-			m.focusIdx = (m.focusIdx + 1) % 2
-		case "shift+tab", "up":
-			m.focusIdx = (m.focusIdx + 1) % 2
 		case "ctrl+c", "esc":
 			return m, tea.Quit
 		case "enter":
 			m.progress = progress.New(progress.WithSolidFill("3")) // reset progress
 			m.progress.SetPercent(0.0)
 			m.loading = true
-			token := m.textInput.Value()
-			if token == "" || m.workspaceInput.Value() == "" || m.workspaceInput.Value() == "" && token == "" {
-				m.errorText = "Token/Workspace URL cannot be empty."
+			if m.textInput.Value() == "" {
+				m.errorText = "Magic string cannot be empty."
 				m.loading = false
 				return m, nil
 			}
 			m.errorText = ""
 			return m, tea.Batch(tickCmd(), func() tea.Msg {
-				return checkSlackToken(token, m.workspaceInput.Value())
+				return checkSlackToken(m.textInput.Value())
 			})
 
 		}
 
 	case successMsg:
-		// Save the token to the file
-
+		m.checkinginfo = true
 		token := m.textInput.Value()
 		var cfg, err = config.LoadConfig()
 		if err != nil {
@@ -126,13 +149,10 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 			}
 		}
 		cfg.SlackToken = token
-		cfg.WorkspaceURL = m.workspaceInput.Value()
 		if err := config.SaveConfig(cfg); err != nil {
 			return m, func() tea.Msg {
 				return errMsg{fmt.Errorf("failed to save config: %w", err)}
 			}
-		} else {
-			m.done = true
 		}
 
 	case tickMsg:
@@ -146,17 +166,8 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 
 	case errMsg:
 		m.done = false
-		m.errorText = "A network error occured (This is either due to no or a bad internet connection, or an invalid token/workspace url)."
+		m.errorText = "A network error occured (This is either due to no or a bad internet connection, or an invalid magic link)."
 	}
-
-	m.textInput.Blur()
-	m.workspaceInput.Blur()
-	if m.focusIdx == 0 {
-		m.textInput.Focus()
-	} else {
-		m.workspaceInput.Focus()
-	}
-	m.workspaceInput, cmd = m.workspaceInput.Update(msg)
 
 	m.textInput, cmd = m.textInput.Update(msg)
 	if m.loading {
@@ -176,13 +187,8 @@ var style = lipgloss.NewStyle().
 var fancystyle = lipgloss.NewStyle().
 	PaddingTop(2).
 	PaddingBottom(1).
-	Italic(true).
 	Bold(true).
 	Foreground(lipgloss.Color("10"))
-
-var subtitlestyle = lipgloss.NewStyle().
-	Italic(true).
-	Foreground(lipgloss.Color("2"))
 
 var errorStyle = lipgloss.NewStyle().
 	Italic(true).
@@ -192,6 +198,28 @@ var keyStyle = lipgloss.NewStyle().
 	Bold(true)
 
 func (m SetupModel) View() string {
+	var subtitlestyle = lipgloss.NewStyle().
+		Italic(true).
+		Foreground(lipgloss.Color("5")).
+		Width(m.width - 10)
+
+	if m.checkinginfo {
+		return lipgloss.JoinVertical(
+			lipgloss.Top,
+			fancystyle.Render(`
+ /\_/\
+( o.o ) < Seems like it worked!!!
+ > ^ <
+ `),
+			subtitlestyle.Render(fmt.Sprintf("Workspace: %s", tempData.Userworkspace)),
+			subtitlestyle.Render(fmt.Sprintf("Username: %s", tempData.Userusername)),
+			subtitlestyle.Render(fmt.Sprintf("Team ID: %s", tempData.UserteamID)),
+			subtitlestyle.MarginBottom(2).Render(fmt.Sprintf("Token: %s", tempData.Usertoken)),
+
+			fmt.Sprintf("Press %s to continue or %s to cancel.", keyStyle.Render("Enter"), keyStyle.Render("Esc")),
+		)
+	}
+
 	if m.loading {
 		return lipgloss.JoinVertical(
 			lipgloss.Top,
@@ -201,11 +229,14 @@ func (m SetupModel) View() string {
 	}
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
-		fancystyle.Render("Welcome to Slack TUI!"),
-		subtitlestyle.Render("Please enter your Slack user token to get started:"),
+		fancystyle.Render(`
+ /\_/\
+( o.o ) < Welcome to SlackTUI!
+ > ^ <
+ `),
+		subtitlestyle.Render("To get started we need quite a few things from slack!"),
+		subtitlestyle.Render("To get all of that, just install our chrome extension and copy paste the magic string it gives you here:"),
 		style.Render(m.textInput.View()),
-		subtitlestyle.Render("And your slack workspace URL (e.g., https://yourworkspace.slack.com):"),
-		style.Render(m.workspaceInput.View()),
 		fmt.Sprintf("Press %s to continue.", keyStyle.Render("Enter")),
 		errorStyle.Render(m.errorText),
 	)
