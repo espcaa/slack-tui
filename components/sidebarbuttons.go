@@ -11,7 +11,7 @@ type SidebarButtonView struct {
 	width    int
 	height   int
 	buttons  []SidebarButton
-	selected int
+	Selected int
 }
 
 type SidebarButton struct {
@@ -31,7 +31,7 @@ func NewSidebarButtonView() *SidebarButtonView {
 			{Name: "", Keybind: "d", focused: false, Id: 1},
 			{Name: "", Keybind: "n", focused: false, Id: 2},
 		},
-		selected: 0,
+		Selected: 0,
 	}
 }
 
@@ -66,7 +66,7 @@ func (s *SidebarButtonView) renderButtons() []string {
 	var buttons []string
 	for _, button := range s.buttons {
 		var buttonContent string = normalTextStyle.Render(button.Name + "\n" + keybindStyle.Render(button.Keybind))
-		if s.selected == button.Id {
+		if s.Selected == button.Id {
 			buttons = append(buttons, buttonStyle.Width((s.width-4)/3).Foreground(lipgloss.Color("205")).Render(buttonContent))
 		} else {
 			buttons = append(buttons, buttonStyle.Width((s.width-4)/3).Render(buttonContent))

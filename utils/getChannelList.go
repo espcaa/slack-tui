@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"slices"
 
 	"net/http"
 	"slacktui/config"
@@ -9,7 +10,7 @@ import (
 	"time"
 )
 
-func GetChannelList() []structs.SidebarItem {
+func GetChannelList(tab []string) []structs.SidebarItem {
 	var cfg, err = config.LoadConfig()
 	if err != nil {
 		panic("Error loading config: " + err.Error())
@@ -65,12 +66,41 @@ func GetChannelList() []structs.SidebarItem {
 		default:
 			t = "unknown"
 		}
+		if t == "unknown" {
+			panic(t)
+		}
 		items = append(items, structs.SidebarItem{
 			Id:   ch.Id,
 			Name: ch.Name,
 			Type: t,
 		})
+
 	}
 
-	return items
+	// Return only if Type == tab
+
+	var filteredItems []structs.SidebarItem
+	var is_channel_list bool
+
+	for _, item := range items {
+		if slices.Contains(tab, item.Type) {
+			filteredItems = append(filteredItems, item)
+			if item.Type == "channel" || item.Type == "private_channel" {
+				is_channel_list = true
+			}
+		}
+	}
+
+	// Sort alphabetically if tab contains channel
+	if is_channel_list {
+		for i := range filteredItems {
+			for j := i + 1; j < len(filteredItems); j++ {
+				if filteredItems[i].Name > filteredItems[j].Name {
+					filteredItems[i], filteredItems[j] = filteredItems[j], filteredItems[i]
+				}
+			}
+		}
+	}
+
+	return filteredItems
 }

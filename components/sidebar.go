@@ -10,7 +10,7 @@ import (
 
 type Sidebar struct {
 	Items       []structs.SidebarItem
-	selected    int
+	Selected    int
 	viewport    viewport.Model
 	width       int
 	height      int
@@ -64,7 +64,7 @@ func (s *Sidebar) renderItems() string {
 		} else {
 			icon = "" // Default icon for unknown types
 		}
-		if i == s.selected {
+		if i == s.Selected {
 			content += lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("205")).

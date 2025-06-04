@@ -2,6 +2,7 @@ package ui
 
 import (
 	"slacktui/components"
+	"slacktui/structs"
 	"slacktui/utils"
 	"time"
 
@@ -18,6 +19,7 @@ type MainActivityModel struct {
 	sidebarbuttons *components.SidebarButtonView
 	width          int
 	height         int
+	tab            []string
 }
 
 type TickMsg struct{}
@@ -30,7 +32,7 @@ func NewMainActivityModel() MainActivityModel {
 	return MainActivityModel{
 		viewport:       viewport.New(0, 0),
 		textarea:       ta,
-		sidebar:        components.NewSidebar(utils.GetChannelList()),
+		sidebar:        components.NewSidebar(utils.GetChannelList([]string{"channel", "private_channel", "notification"})),
 		sidebarbuttons: components.NewSidebarButtonView(),
 	}
 }
@@ -39,6 +41,10 @@ func (m MainActivityModel) Init() tea.Cmd {
 	return tea.Batch(m.textarea.Focus(), tea.Tick(time.Second*60, func(time.Time) tea.Msg {
 		return TickMsg{}
 	}))
+}
+
+func (m MainActivityModel) refreshChannels() []structs.SidebarItem {
+	return utils.GetChannelList(m.tab)
 }
 
 func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,9 +69,26 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 		cmd = m.textarea.Focus()
+	case tea.KeyMsg:
+		if msg.String() == "c" {
+			m.sidebarbuttons.Selected = 0
+			m.tab = []string{"channel", "private_channel"}
+			m.sidebar.Items = m.refreshChannels()
+		}
+		if msg.String() == "d" {
+			m.sidebarbuttons.Selected = 1
+			m.tab = []string{"dm", "group-dm"}
+			m.sidebar.Items = m.refreshChannels()
+
+		}
+		if msg.String() == "n" {
+			m.sidebarbuttons.Selected = 2
+			m.tab = []string{"notification"}
+			m.sidebar.Items = m.refreshChannels()
+		}
 
 	case TickMsg:
-		var user_channels = utils.GetChannelList()
+		var user_channels = m.refreshChannels()
 		m.sidebar.Items = user_channels
 		cmd = tea.Tick(time.Second*60, func(time.Time) tea.Msg {
 			return TickMsg{}
