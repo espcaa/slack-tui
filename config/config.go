@@ -9,6 +9,8 @@ import (
 type Config struct {
 	SlackToken   string
 	WorkspaceURL string
+	WorkspaceID  string
+	Cookies      string
 }
 
 func ConfigPath() (string, error) {

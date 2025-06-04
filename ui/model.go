@@ -44,8 +44,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case "main":
 		mainAct, cmd := m.mainAct.Update(msg)
-		m.mainAct = mainAct
-		// example: switch to settings on "s"
+		if castedMainAct, ok := mainAct.(MainActivityModel); ok {
+			m.mainAct = castedMainAct
+		}
 
 		return m, cmd
 

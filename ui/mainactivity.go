@@ -1,7 +1,9 @@
 package ui
 
 import (
-	sidebar "slacktui/components"
+	"slacktui/components"
+	"slacktui/utils"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -9,76 +11,100 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const gap = "\n\n"
-
 type MainActivityModel struct {
-	viewport viewport.Model
-	textarea textarea.Model
-	sidebar  sidebar.Sidebar
+	viewport       viewport.Model
+	textarea       textarea.Model
+	sidebar        *components.Sidebar
+	sidebarbuttons *components.SidebarButtonView
+	width          int
+	height         int
 }
+
+type TickMsg struct{}
 
 func NewMainActivityModel() MainActivityModel {
 	ta := textarea.New()
 	ta.Placeholder = "Type here..."
-	ta.SetWidth(50)            // Set initial width
-	ta.SetHeight(3)            // Set initial height
-	ta.ShowLineNumbers = false // Optional: Hide line numbers
-	ta.Prompt = ""             // Set a custom prompt
+	ta.Prompt = ""
+	ta.ShowLineNumbers = false
 	return MainActivityModel{
-		viewport: viewport.New(80, 20),
-		textarea: ta,
-		sidebar:  *sidebar.NewSidebar([]string{"Item 1", "Item 2", "Item 3"}),
+		viewport:       viewport.New(0, 0),
+		textarea:       ta,
+		sidebar:        components.NewSidebar(utils.GetChannelList()),
+		sidebarbuttons: components.NewSidebarButtonView(),
 	}
 }
 
 func (m MainActivityModel) Init() tea.Cmd {
-	return m.textarea.Focus()
+	return tea.Batch(m.textarea.Focus(), tea.Tick(time.Second*60, func(time.Time) tea.Msg {
+		return TickMsg{}
+	}))
 }
 
-func (m MainActivityModel) Update(msg tea.Msg) (MainActivityModel, tea.Cmd) {
+func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var textCmd tea.Cmd
+	var sidebarCmd tea.Cmd
+
+	m.sidebarbuttons, sidebarCmd = m.sidebarbuttons.Update(msg)
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.viewport = viewport.New(msg.Width-(msg.Width/4), msg.Height-(msg.Height/8)-2) // Adjust viewport size
-		m.textarea.SetWidth(msg.Width - (msg.Width / 4))                                // Adjust textarea width
-		m.textarea.SetHeight(msg.Height / 8)                                            // Keep textarea height fixed
-		cmd = m.textarea.Focus()                                                        // Re-focus textarea after resize
+		m.width = msg.Width - 6
+		m.height = msg.Height - 4
+
+		sidebarWidth := m.width / 4
+		contentWidth := m.width - sidebarWidth
+
+		m.viewport.Width = contentWidth
+		m.viewport.Height = m.height - 5 // minus textarea height
+		m.textarea.SetWidth(contentWidth)
+		m.textarea.SetHeight(3)
+
+		m.sidebar, sidebarCmd = m.sidebar.Update(msg)
+		cmd = m.textarea.Focus()
+
+	case TickMsg:
+		var user_channels = utils.GetChannelList()
+		m.sidebar.Items = user_channels
+		cmd = tea.Tick(time.Second*60, func(time.Time) tea.Msg {
+			return TickMsg{}
+		})
 	}
 
-	var textCmd tea.Cmd
 	m.textarea, textCmd = m.textarea.Update(msg)
-
-	return m, tea.Batch(cmd, textCmd)
+	return m, tea.Batch(cmd, textCmd, sidebarCmd)
 }
-
-// Sidebar style
-var sidebarStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("63")).
-	Background(lipgloss.Color("236")).
-	Padding(1, 2).
-	Width(30)
-
-// Chat content style
-var chatContentStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240"))
-
-// Textarea style
-var textareaStyle = lipgloss.NewStyle().
-	Border(lipgloss.RoundedBorder()).
-	BorderForeground(lipgloss.Color("240")).
-	Padding(1, 2)
 
 func (m MainActivityModel) View() string {
+	sidebarView := m.sidebar.View()
+
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		chatContentStyle.Width(m.viewport.Width).Render(m.viewport.View()),
+		textareaStyle.Width(m.textarea.Width()).Render(m.textarea.View()),
+	)
+
+	sidebarcontent := lipgloss.JoinVertical(lipgloss.Bottom,
+		m.sidebarbuttons.View(),
+		sidebarView,
+	)
+
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		sidebarStyle.Render(m.sidebar.View()), // Render the sidebar with updated style
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			chatContentStyle.Render(m.viewport.View()), // Place the viewport above
-			textareaStyle.Render(m.textarea.View()),    // Place the textarea at the bottom
-		),
+		sidebarcontent,
+		content,
 	)
 }
+
+// Styles
+var chatContentStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder()).
+	Padding(1, 2).
+	Foreground(lipgloss.Color("63")).
+	MarginTop(4)
+
+var textareaStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder()).
+	Padding(0, 1).
+	Foreground(lipgloss.Color("111"))

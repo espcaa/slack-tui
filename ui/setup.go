@@ -23,6 +23,7 @@ type SetupModel struct {
 	errorText    string
 	width        int
 	checkinginfo bool
+	proceeding   bool // Indicates if the user has confirmed the information
 }
 
 var tempData struct {
@@ -97,7 +98,7 @@ func checkSlackToken(input string) tea.Msg {
 	if result.Ok {
 		// If the response is ok, we can save the token, workspace, and username
 		tempData.Usertoken = parts[1]
-		tempData.Userworkspace = result.Team
+		tempData.Userworkspace = result.URL
 		tempData.Userusername = result.User
 		tempData.UserteamID = result.TeamID
 
@@ -121,43 +122,68 @@ func (m SetupModel) Update(msg tea.Msg) (SetupModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c":
 			return m, tea.Quit
-		case "enter":
-			m.progress = progress.New(progress.WithSolidFill("3")) // reset progress
-			m.progress.SetPercent(0.0)
-			m.loading = true
-			if m.textInput.Value() == "" {
-				m.errorText = "Magic string cannot be empty."
-				m.loading = false
+		case "esc":
+			if m.checkinginfo {
+				m.checkinginfo = false
+				m.textInput.SetValue("")
+				m.errorText = ""
 				return m, nil
+			} else {
+				return m, tea.Quit
 			}
-			m.errorText = ""
-			return m, tea.Batch(tickCmd(), func() tea.Msg {
-				return checkSlackToken(m.textInput.Value())
-			})
+		case "enter":
+			if !m.checkinginfo {
+				m.progress = progress.New(progress.WithSolidFill("3")) // reset progress
+				m.progress.SetPercent(0.0)
+				m.loading = true
+				if m.textInput.Value() == "" {
+					m.errorText = "Magic string cannot be empty."
+					m.loading = false
+					return m, nil
+				}
+				m.errorText = ""
+				return m, tea.Batch(tickCmd(), func() tea.Msg {
+					return checkSlackToken(m.textInput.Value())
+				})
+			} else if m.checkinginfo && !m.loading {
+				m.proceeding = true
+				m.loading = true
+				m.progress = progress.New(progress.WithSolidFill("3")) // reset progress
+				m.progress.SetPercent(0.0)
+				// Handle saving of the data in config file
+				var cfg, err = config.LoadConfig()
+				if err != nil {
+					return m, func() tea.Msg {
+						return errMsg{fmt.Errorf("failed to load config: %w", err)}
+					}
+				}
+				cfg.SlackToken = tempData.Usertoken
+				cfg.WorkspaceID = tempData.UserteamID
+				cfg.WorkspaceURL = tempData.Userworkspace
+				cfg.Cookies = strings.Split(m.textInput.Value(), "||")[0]
+
+				if err := config.SaveConfig(cfg); err != nil {
+					return m, func() tea.Msg {
+						return errMsg{fmt.Errorf("failed to save config: %w", err)}
+					}
+				}
+				return m, tea.Batch(tickCmd())
+
+			}
 
 		}
 
 	case successMsg:
 		m.checkinginfo = true
-		token := m.textInput.Value()
-		var cfg, err = config.LoadConfig()
-		if err != nil {
-			return m, func() tea.Msg {
-				return errMsg{fmt.Errorf("failed to load config: %w", err)}
-			}
-		}
-		cfg.SlackToken = token
-		if err := config.SaveConfig(cfg); err != nil {
-			return m, func() tea.Msg {
-				return errMsg{fmt.Errorf("failed to save config: %w", err)}
-			}
-		}
 
 	case tickMsg:
 		if m.progress.Percent() == 1.0 {
 			m.loading = false
+			if m.checkinginfo && m.proceeding {
+				m.done = true
+			}
 		}
 		if m.loading {
 			cmd := m.progress.IncrPercent(1.0)
@@ -203,7 +229,7 @@ func (m SetupModel) View() string {
 		Foreground(lipgloss.Color("5")).
 		Width(m.width - 10)
 
-	if m.checkinginfo {
+	if m.checkinginfo && !m.loading {
 		return lipgloss.JoinVertical(
 			lipgloss.Top,
 			fancystyle.Render(`
@@ -223,7 +249,7 @@ func (m SetupModel) View() string {
 	if m.loading {
 		return lipgloss.JoinVertical(
 			lipgloss.Top,
-			subtitlestyle.PaddingTop(2).PaddingBottom(2).Render("Checking token..."),
+			subtitlestyle.PaddingTop(2).PaddingBottom(2).Render("Doing some work..."),
 			m.progress.View(),
 		)
 	}

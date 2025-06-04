@@ -1,93 +1,85 @@
-package sidebar
+package components
 
 import (
+	"slacktui/structs"
+
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type Sidebar struct {
-	items    []string
-	selected int
-	viewport viewport.Model
+	Items       []structs.SidebarItem
+	selected    int
+	viewport    viewport.Model
+	width       int
+	height      int
+	currentItem *structs.SidebarItem
 }
 
-func NewSidebar(items []string) *Sidebar {
+func NewSidebar(items []structs.SidebarItem) *Sidebar {
 	return &Sidebar{
-		items:    items,
-		selected: 0,
+		Items: items,
 	}
 }
 
-func (s *Sidebar) SelectNext() {
-	if len(s.items) == 0 {
-		return
-	}
-	s.selected = (s.selected + 1) % len(s.items)
-}
-
-func (s *Sidebar) SelectPrevious() {
-	if len(s.items) == 0 {
-		return
-	}
-	s.selected = (s.selected - 1 + len(s.items)) % len(s.items)
-}
-
-func (s *Sidebar) GetSelected() string {
-	if len(s.items) == 0 {
-		return ""
-	}
-	return s.items[s.selected]
-}
-
-func (s *Sidebar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "j", "down":
-			s.SelectNext()
-		case "k", "up":
-			s.SelectPrevious()
-		}
+	case tea.WindowSizeMsg:
+		s.width = msg.Width / 4
+		s.height = msg.Height - 6 // Reserve space for the footer or other UI elements
+		s.viewport.Width = s.width
+		s.viewport.Height = msg.Height - 8 // Adjust height to fit the viewport
 	}
-
-	// Update the viewport if necessary
-	if msg, ok := msg.(tea.WindowSizeMsg); ok {
-		s.viewport.Width = msg.Width / 4
-		s.viewport.Height = msg.Height
-	}
+	content := s.renderItems()
+	s.viewport.SetContent(content)
 
 	var cmd tea.Cmd
 	s.viewport, cmd = s.viewport.Update(msg)
 	return s, cmd
 }
 
-var sidebarStyle = lipgloss.NewStyle().
-	BorderRight(true).
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("2"))
-
 func (s *Sidebar) View() string {
-	var output string
-	for i, item := range s.items {
-		if i == s.selected {
-			output += "> " + item + "\n"
+	return lipgloss.JoinVertical(
+		lipgloss.Bottom,
+		sidebarStyle.Width(s.width).Height(s.height).Render(s.viewport.View()),
+	)
+}
+
+func (s *Sidebar) renderItems() string {
+	if len(s.Items) == 0 {
+		return "No Items available"
+	}
+
+	content := ""
+	for i, item := range s.Items {
+		var icon string
+		if item.Type == "channel" {
+			icon = "#" // Folder icon for channels
+		} else if item.Type == "private_channel" {
+			icon = "" // Message icon for direct messages
+		} else if item.Type == "dm" {
+			icon = "󰍡" // Group icon for groups
+
 		} else {
-			output += "  " + item + "\n"
+			icon = "" // Default icon for unknown types
+		}
+		if i == s.selected {
+			content += lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("205")).
+				Render("> "+icon+" "+item.Name) + "\n"
+		} else {
+			content += "  " + icon + " " + item.Name + "\n"
 		}
 	}
-	return output + s.viewport.View()
-}
-func (s *Sidebar) SetSize(width, height int) {
-	s.viewport.Width = width
-	s.viewport.Height = height
-}
-
-func (s *Sidebar) SetViewportSize(width, height int) {
-	s.viewport.Width = width
-	s.viewport.Height = height
+	return content
 }
 
 func (s *Sidebar) Init() tea.Cmd {
 	return nil
 }
+
+var sidebarStyle = lipgloss.NewStyle().
+	Border(lipgloss.NormalBorder()).
+	Padding(1, 2)
