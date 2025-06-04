@@ -1,3 +1,6 @@
+
+![icon-128](https://github.com/user-attachments/assets/1156c590-abe2-42f3-ac00-cf52f2dae71f)
+
 # Slack TUI
 
 A terminal user interface for Slack, built with go and the bubble tea framework.
