@@ -9,21 +9,25 @@ import (
 )
 
 type Sidebar struct {
-	Items       []structs.SidebarItem
-	Selected    int
-	viewport    viewport.Model
-	width       int
-	height      int
-	currentItem *structs.SidebarItem
+	Selected        int // Track the selected item
+	viewport        viewport.Model
+	width           int
+	height          int
+	ChannelItems    []structs.Channel
+	DmsItems        []structs.DMChannel
+	DmSelected      int // Track the selected DM item
+	ChannelSelected int // Track the selected channel item
 }
 
-func NewSidebar(items []structs.SidebarItem) *Sidebar {
+func NewSidebar(channelitems []structs.Channel, dmsitems []structs.DMChannel) *Sidebar {
 	return &Sidebar{
-		Items: items,
+		ChannelItems: channelitems,
+		DmsItems:     dmsitems,
 	}
 }
 
 func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
+	var tickCmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		s.width = msg.Width / 4
@@ -31,12 +35,13 @@ func (s *Sidebar) Update(msg tea.Msg) (*Sidebar, tea.Cmd) {
 		s.viewport.Width = s.width
 		s.viewport.Height = msg.Height - 8 // Adjust height to fit the viewport
 	}
+
 	content := s.renderItems()
 	s.viewport.SetContent(content)
 
 	var cmd tea.Cmd
 	s.viewport, cmd = s.viewport.Update(msg)
-	return s, cmd
+	return s, tea.Batch(cmd, tickCmd)
 }
 
 func (s *Sidebar) View() string {
@@ -47,32 +52,36 @@ func (s *Sidebar) View() string {
 }
 
 func (s *Sidebar) renderItems() string {
-	if len(s.Items) == 0 {
-		return "No Items available"
-	}
 
 	content := ""
-	for i, item := range s.Items {
-		var icon string
-		if item.Type == "channel" {
-			icon = "#" // Folder icon for channels
-		} else if item.Type == "private_channel" {
-			icon = "" // Message icon for direct messages
-		} else if item.Type == "dm" {
-			icon = "󰍡" // Group icon for groups
+	if s.Selected == 0 {
+		for i, item := range s.ChannelItems {
+			var icon string = "#"
 
-		} else {
-			icon = "" // Default icon for unknown types
+			if i == s.Selected {
+				content += lipgloss.NewStyle().
+					Bold(true).
+					Foreground(lipgloss.Color("205")).
+					Render("> "+icon+" "+item.ChannelName) + "\n"
+			} else {
+				content += "  " + icon + " " + item.ChannelName + "\n"
+			}
 		}
-		if i == s.Selected {
-			content += lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("205")).
-				Render("> "+icon+" "+item.Name) + "\n"
-		} else {
-			content += "  " + icon + " " + item.Name + "\n"
+	} else if s.Selected == 1 {
+		for i, item := range s.DmsItems {
+			var icon string = " "
+
+			if i == s.Selected {
+				content += lipgloss.NewStyle().
+					Bold(true).
+					Foreground(lipgloss.Color("205")).
+					Render("> "+icon+" "+item.DmUserID) + "\n"
+			} else {
+				content += "  " + icon + " " + item.DmUserID + "\n"
+			}
 		}
 	}
+
 	return content
 }
 
@@ -83,3 +92,7 @@ func (s *Sidebar) Init() tea.Cmd {
 var sidebarStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder()).
 	Padding(1, 2)
+
+func (s *Sidebar) ReloadItems() {
+	s.viewport.SetContent(s.renderItems())
+}

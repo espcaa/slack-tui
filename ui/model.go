@@ -23,6 +23,14 @@ func NewMainModel(startView string) MainModel {
 }
 
 func (m MainModel) Init() tea.Cmd {
+	switch m.currentView {
+	case "setup":
+		return m.setup.Init()
+	case "main":
+		return m.mainAct.Init()
+	case "settings":
+		return m.settings.Init()
+	}
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"slacktui/components"
 	"slacktui/structs"
 	"slacktui/utils"
@@ -19,32 +20,46 @@ type MainActivityModel struct {
 	sidebarbuttons *components.SidebarButtonView
 	width          int
 	height         int
-	tab            []string
+	focused        string // Track which component is focused
 }
 
 type TickMsg struct{}
+
+type UserDataLoadedMsg struct {
+	Channels []structs.Channel
+	DMs      []structs.DMChannel
+	Err      error
+}
+
+func loadUserDataCmd() tea.Cmd {
+	return func() tea.Msg {
+		channels, dms, err := utils.GetUserData()
+		return UserDataLoadedMsg{Channels: channels, DMs: dms, Err: err}
+	}
+}
 
 func NewMainActivityModel() MainActivityModel {
 	ta := textarea.New()
 	ta.Placeholder = "Type here..."
 	ta.Prompt = ""
 	ta.ShowLineNumbers = false
+
 	return MainActivityModel{
-		viewport:       viewport.New(0, 0),
-		textarea:       ta,
-		sidebar:        components.NewSidebar(utils.GetChannelList([]string{"channel", "private_channel", "notification"})),
+		viewport: viewport.New(0, 0),
+		textarea: ta,
+		// With example channel and dm
+		sidebar:        components.NewSidebar([]structs.Channel{}, []structs.DMChannel{}),
 		sidebarbuttons: components.NewSidebarButtonView(),
 	}
 }
 
 func (m MainActivityModel) Init() tea.Cmd {
-	return tea.Batch(m.textarea.Focus(), tea.Tick(time.Second*60, func(time.Time) tea.Msg {
-		return TickMsg{}
-	}))
-}
+	return tea.Batch(
+		loadUserDataCmd(),
 
-func (m MainActivityModel) refreshChannels() []structs.SidebarItem {
-	return utils.GetChannelList(m.tab)
+		m.textarea.Focus(),
+		tea.Tick(time.Second, func(time.Time) tea.Msg { return TickMsg{} }),
+	)
 }
 
 func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -55,6 +70,15 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.sidebarbuttons, sidebarCmd = m.sidebarbuttons.Update(msg)
 
 	switch msg := msg.(type) {
+	case UserDataLoadedMsg:
+		if msg.Err != nil {
+			fmt.Println("Error fetching user data:", msg.Err)
+			return m, nil
+		}
+		m.sidebar.ChannelItems = msg.Channels
+		m.sidebar.DmsItems = msg.DMs
+		m.sidebar.ReloadItems()
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width - 6
 		m.height = msg.Height - 4
@@ -70,26 +94,22 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 		cmd = m.textarea.Focus()
 	case tea.KeyMsg:
-		if msg.String() == "c" {
-			m.sidebarbuttons.Selected = 0
-			m.tab = []string{"channel", "private_channel"}
-			m.sidebar.Items = m.refreshChannels()
-		}
-		if msg.String() == "d" {
-			m.sidebarbuttons.Selected = 1
-			m.tab = []string{"dm", "group-dm"}
-			m.sidebar.Items = m.refreshChannels()
+		if msg.String() == "shift+tab" {
+			m.sidebarbuttons.Selected += 1
+			if m.sidebarbuttons.Selected >= 3 {
+				m.sidebarbuttons.Selected = 0
+			}
+			m.sidebar.Selected += 1
+			if m.sidebar.Selected >= 3 {
+				m.sidebar.Selected = 0
+			}
+			// Run the update method to refresh the sidebar
+			m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 
-		}
-		if msg.String() == "n" {
-			m.sidebarbuttons.Selected = 2
-			m.tab = []string{"notification"}
-			m.sidebar.Items = m.refreshChannels()
 		}
 
 	case TickMsg:
-		var user_channels = m.refreshChannels()
-		m.sidebar.Items = user_channels
+		// Handle tick messages for periodic updates
 		cmd = tea.Tick(time.Second*60, func(time.Time) tea.Msg {
 			return TickMsg{}
 		})

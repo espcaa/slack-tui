@@ -1,0 +1,92 @@
+package utils
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"slacktui/config"
+	"slacktui/structs"
+	"time"
+)
+
+type Channel struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	IsMpim    bool     `json:"is_mpim"`
+	IsPrivate bool     `json:"is_private"`
+	Members   []string `json:"members"`
+}
+
+type DM struct {
+	ID     string `json:"id"`
+	User   string `json:"user"`
+	IsIm   bool   `json:"is_im"`
+	IsOpen bool   `json:"is_open"`
+}
+
+type ApiResponse struct {
+	Channels []Channel `json:"channels"`
+	Dms      []DM      `json:"ims"`
+}
+
+func GetUserData() ([]structs.Channel, []structs.DMChannel, error) {
+	config, err := config.LoadConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client := http.Client{Timeout: 5 * time.Second}
+	req, err := http.NewRequest("GET", "https://slack.com/api/client.userBoot", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+config.SlackToken)
+	req.Header.Set("Cookie", config.Cookies)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var apiResp ApiResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, nil, err
+	}
+
+	// Convert slices directly
+	structChannels := make([]structs.Channel, 0, len(apiResp.Channels))
+	for _, ch := range apiResp.Channels {
+		structChannels = append(structChannels, structs.Channel{
+			ChannelId:     ch.ID,
+			ChannelName:   ch.Name,
+			Mention_count: 0,
+		})
+	}
+
+	structDMs := make([]structs.DMChannel, 0, len(apiResp.Dms))
+	for _, dm := range apiResp.Dms {
+		structDMs = append(structDMs, structs.DMChannel{
+			DmID:          dm.ID,
+			DmUserID:      dm.User,
+			Latest:        0,  // Default value; update based on your logic
+			Latest_text:   "", // Default value; update based on your logic
+			Mention_count: 0,  // Default value; update based on your logic
+		})
+	}
+
+	// Interpret as structs.Channel and structs.DMChannel
+	// This block is redundant and has been removed.
+
+	// Check if there's data and panic if not
+	if len(structChannels) == 0 && len(structDMs) == 0 {
+		panic("No channels or DMs found in userBoot response")
+	}
+
+	return structChannels, structDMs, nil
+}
