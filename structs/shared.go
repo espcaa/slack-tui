@@ -10,7 +10,7 @@ type DMChannel struct {
 	DmID          string
 	DmUserID      string
 	DmUserName    string
-	Latest        int    // Timestamp of the latest message
+	Latest        int64  // Timestamp of the latest message
 	Latest_text   string // Text of the latest message
 	Mention_count int    // Unread mention count
 }
@@ -19,4 +19,12 @@ type Channel struct {
 	ChannelId     string
 	ChannelName   string
 	Mention_count int // Unread mention count
+}
+
+type Message struct {
+	MessageId  string
+	SenderId   string
+	SenderName string
+	Content    string
+	Timestamp  int64 // Unix timestamp
 }

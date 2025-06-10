@@ -15,8 +15,8 @@ type Sidebar struct {
 	height          int
 	ChannelItems    []structs.Channel
 	DmsItems        []structs.DMChannel
-	DmSelected      int // Track the selected DM item
-	ChannelSelected int // Track the selected channel item
+	DmSelected      structs.DMChannel
+	ChannelSelected structs.Channel
 }
 
 func NewSidebar(channelitems []structs.Channel, dmsitems []structs.DMChannel) *Sidebar {
@@ -55,10 +55,9 @@ func (s *Sidebar) renderItems() string {
 
 	content := ""
 	if s.Selected == 0 {
-		for i, item := range s.ChannelItems {
+		for _, item := range s.ChannelItems {
 			var icon string = "#"
-
-			if i == s.Selected {
+			if item.ChannelId == s.ChannelSelected.ChannelId {
 				content += lipgloss.NewStyle().
 					Bold(true).
 					Foreground(lipgloss.Color("205")).
@@ -68,16 +67,23 @@ func (s *Sidebar) renderItems() string {
 			}
 		}
 	} else if s.Selected == 1 {
-		for i, item := range s.DmsItems {
+		for _, item := range s.DmsItems {
 			var icon string = " "
+			var itemName string = ""
 
-			if i == s.Selected {
+			if item.DmUserName != "" {
+				itemName = item.DmUserName
+			} else {
+				itemName = item.DmUserID
+			}
+
+			if item.DmID == s.DmSelected.DmID {
 				content += lipgloss.NewStyle().
 					Bold(true).
 					Foreground(lipgloss.Color("205")).
-					Render("> "+icon+" "+item.DmUserID) + "\n"
+					Render("> "+icon+" "+itemName) + "\n"
 			} else {
-				content += "  " + icon + " " + item.DmUserID + "\n"
+				content += "  " + icon + " " + itemName + "\n"
 			}
 		}
 	}

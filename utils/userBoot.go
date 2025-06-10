@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"slacktui/config"
 	"slacktui/structs"
+	"sort"
 	"time"
 )
 
@@ -18,10 +19,11 @@ type Channel struct {
 }
 
 type DM struct {
-	ID     string `json:"id"`
-	User   string `json:"user"`
-	IsIm   bool   `json:"is_im"`
-	IsOpen bool   `json:"is_open"`
+	ID      string `json:"id"`
+	User    string `json:"user"`
+	IsIm    bool   `json:"is_im"`
+	IsOpen  bool   `json:"is_open"`
+	Updated int64  `json:"updated"`
 }
 
 type ApiResponse struct {
@@ -60,6 +62,11 @@ func GetUserData() ([]structs.Channel, []structs.DMChannel, error) {
 	}
 
 	// Convert slices directly
+	sort.Slice(apiResp.Channels, func(i, j int) bool {
+		return apiResp.Channels[i].Name < apiResp.Channels[j].Name
+	})
+
+	// Convert slices directly
 	structChannels := make([]structs.Channel, 0, len(apiResp.Channels))
 	for _, ch := range apiResp.Channels {
 		structChannels = append(structChannels, structs.Channel{
@@ -71,22 +78,29 @@ func GetUserData() ([]structs.Channel, []structs.DMChannel, error) {
 
 	structDMs := make([]structs.DMChannel, 0, len(apiResp.Dms))
 	for _, dm := range apiResp.Dms {
+		// get the username from sqlite
+		var username, err = GetNameFromID(dm.User, true)
+		if err != nil {
+			username = "error" // Fallback to User ID if username retrieval fails
+		}
+
 		structDMs = append(structDMs, structs.DMChannel{
+			DmUserName:    username,
 			DmID:          dm.ID,
 			DmUserID:      dm.User,
-			Latest:        0,  // Default value; update based on your logic
-			Latest_text:   "", // Default value; update based on your logic
-			Mention_count: 0,  // Default value; update based on your logic
+			Latest:        dm.Updated, // Default value; update based on your logic
+			Latest_text:   "",         // Default value; update based on your logic
+			Mention_count: 0,          // Default value; update based on your logic
 		})
 	}
 
+	// Sort DMs by Latest in descending order
+	sort.Slice(structDMs, func(i, j int) bool {
+		return i > j
+	})
+
 	// Interpret as structs.Channel and structs.DMChannel
 	// This block is redundant and has been removed.
-
-	// Check if there's data and panic if not
-	if len(structChannels) == 0 && len(structDMs) == 0 {
-		panic("No channels or DMs found in userBoot response")
-	}
 
 	return structChannels, structDMs, nil
 }
