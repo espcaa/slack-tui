@@ -17,6 +17,7 @@ type ChatHistory struct {
 	viewport viewport.Model
 	Width    int
 	Height   int
+	Focused  bool // Track if the chat history is focused
 }
 
 func NewChatHistory() *ChatHistory {
@@ -29,21 +30,25 @@ func NewChatHistory() *ChatHistory {
 }
 
 func (c *ChatHistory) Update(msg tea.Msg) (*ChatHistory, tea.Cmd) {
+
 	var tickCmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		c.Width = (msg.Width / 4 * 3) - 7
+		c.Width = (msg.Width / 4 * 3) - 6
 		c.Height = msg.Height - 7 // Reserve space for the footer or other UI elements
 		c.viewport.Width = c.Width
 		c.viewport.Height = c.Height - 2 // Adjust height to fit the viewport
+		c.viewport.SetContent(c.RenderMessages())
+
+		var cmd tea.Cmd
+		c.viewport, cmd = c.viewport.Update(msg)
+		return c, tea.Batch(cmd, tickCmd)
+	case tea.KeyMsg:
+		if msg.String() == "tab" && c.Focused {
+			c.ReloadMessages() // Refresh chat history when Focused state changes
+		}
 	}
-
-	content := ""
-	c.viewport.SetContent(content)
-
-	var cmd tea.Cmd
-	c.viewport, cmd = c.viewport.Update(msg)
-	return c, tea.Batch(cmd, tickCmd)
+	return c, nil
 }
 
 func (c *ChatHistory) View() string {
@@ -58,7 +63,7 @@ func (c *ChatHistory) RenderMessages() string {
 		content = "No messages yet."
 	} else {
 		for _, msg := range c.Messages {
-			content += usernameStyle.Render(msg.SenderName) + " -- " + utils.TimestampToString(strconv.FormatInt(msg.Timestamp, 10)) + "\n" + messageStyle.Render(html.UnescapeString(msg.Content)) + "\n"
+			content += "\n" + usernameStyle.Render(msg.SenderName) + " -- " + utils.TimestampToString(strconv.FormatInt(msg.Timestamp, 10)) + "\n" + messageStyle.Width(c.Width).Render(html.UnescapeString(msg.Content))
 		}
 	}
 	return content
@@ -66,6 +71,9 @@ func (c *ChatHistory) RenderMessages() string {
 
 func (c *ChatHistory) ReloadMessages() {
 	c.viewport.SetContent(c.RenderMessages())
+
+	// Set the viewport position to the bottom
+	c.viewport.GotoBottom()
 }
 
 var usernameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))

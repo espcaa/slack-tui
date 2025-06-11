@@ -6,7 +6,6 @@ import (
 )
 
 type SidebarButtonView struct {
-
 	width    int
 	height   int
 	buttons  []SidebarButton

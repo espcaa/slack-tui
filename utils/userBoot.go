@@ -61,7 +61,7 @@ func GetUserData() ([]structs.Channel, []structs.DMChannel, error) {
 		return nil, nil, err
 	}
 
-	// Convert slices directly
+	// Sort channels by Name
 	sort.Slice(apiResp.Channels, func(i, j int) bool {
 		return apiResp.Channels[i].Name < apiResp.Channels[j].Name
 	})
@@ -73,6 +73,7 @@ func GetUserData() ([]structs.Channel, []structs.DMChannel, error) {
 			ChannelId:     ch.ID,
 			ChannelName:   ch.Name,
 			Mention_count: 0,
+			IsPrivate:     ch.IsPrivate,
 		})
 	}
 

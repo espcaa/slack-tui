@@ -13,13 +13,13 @@ import (
 )
 
 type MainActivityModel struct {
-	chathistory    components.ChatHistory
+	chathistory    *components.ChatHistory
 	textarea       textarea.Model
 	sidebar        *components.Sidebar
 	sidebarbuttons *components.SidebarButtonView
 	width          int
 	height         int
-	focused        string // Track which component is focused
+	focusedPanel   string
 }
 
 type TickMsg struct{}
@@ -62,11 +62,12 @@ func NewMainActivityModel() MainActivityModel {
 	ta.ShowLineNumbers = false
 
 	return MainActivityModel{
-		chathistory: *components.NewChatHistory(),
+		chathistory: components.NewChatHistory(),
 		textarea:    ta,
 		// With example channel and dm
 		sidebar:        components.NewSidebar([]structs.Channel{}, []structs.DMChannel{}),
 		sidebarbuttons: components.NewSidebarButtonView(),
+		focusedPanel:   "textarea",
 	}
 }
 
@@ -86,6 +87,8 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var chatCmd tea.Cmd
 
 	m.sidebarbuttons, sidebarCmd = m.sidebarbuttons.Update(msg)
+	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
+	m.chathistory, chatCmd = m.chathistory.Update(msg)
 
 	switch msg := msg.(type) {
 	case UserDataLoadedMsg:
@@ -97,6 +100,9 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebar.DmsItems = msg.DMs
 		m.sidebar.DmSelected = msg.DMs[0]
 		m.sidebar.ChannelSelected = msg.Channels[0]
+		m.sidebar.ChannelHovered = msg.Channels[0]
+		m.sidebar.DMHovered = msg.DMs[0]
+		m.sidebar.ResetOffsetToSelected()
 		m.sidebar.ReloadItems()
 		// Send the msg for loading messages
 		return m, loadMessagesCmd(m.sidebar.ChannelSelected)
@@ -116,11 +122,11 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textarea.SetWidth(contentWidth)
 		m.textarea.SetHeight(3)
 
-		m.sidebar, sidebarCmd = m.sidebar.Update(msg)
-		updatedChatHistory, _ := m.chathistory.Update(msg)
-		m.chathistory = *updatedChatHistory
 		cmd = m.textarea.Focus()
 	case tea.KeyMsg:
+		if m.focusedPanel == "chat" {
+			m.chathistory, chatCmd = m.chathistory.Update(msg)
+		}
 		if msg.String() == "shift+tab" {
 			m.sidebarbuttons.Selected += 1
 			if m.sidebarbuttons.Selected >= 3 {
@@ -131,12 +137,32 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sidebar.Selected = 0
 			}
 			// Run the update method to refresh the sidebar
+			m.sidebar.ResetOffsetToSelected()
 			m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 
 		}
+		if msg.String() == "tab" {
+			if m.focusedPanel == "chat" {
+				m.focusedPanel = "sidebar"
+				m.chathistory.Focused = false
+				m.sidebar.Focused = true
+				m.sidebar.ReloadItems()
+				m.textarea.Blur()
+			} else if m.focusedPanel == "sidebar" {
+				m.focusedPanel = "textarea"
+				m.chathistory.Focused = false
+				m.sidebar.Focused = false
+				m.textarea.Focus()
+			} else if m.focusedPanel == "textarea" {
+				m.focusedPanel = "chat"
+				m.chathistory.Focused = true
+				m.sidebar.Focused = false
+				m.chathistory.ReloadMessages()
+				m.textarea.Blur()
+			}
+		}
 
 	case TickMsg:
-		// Handle tick messages for periodic updates
 		cmd = tea.Tick(time.Second*60, func(time.Time) tea.Msg {
 			return TickMsg{}
 		})
@@ -149,15 +175,38 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m MainActivityModel) View() string {
 	sidebarView := m.sidebar.View()
 
+	var additionalChatStyle lipgloss.Style
+	if m.focusedPanel == "chat" {
+		additionalChatStyle = lipgloss.NewStyle().BorderForeground(lipgloss.Color("2"))
+	} else {
+		additionalChatStyle = lipgloss.NewStyle()
+	}
+	var additionalSidebarStyle lipgloss.Style
+	if m.focusedPanel == "sidebar" {
+		additionalSidebarStyle = lipgloss.NewStyle().BorderForeground(lipgloss.Color("2"))
+	} else {
+		additionalSidebarStyle = lipgloss.NewStyle()
+	}
+	var additionalTextareaStyle lipgloss.Style
+	if m.focusedPanel == "textarea" {
+		additionalTextareaStyle = lipgloss.NewStyle().BorderForeground(lipgloss.Color("2"))
+	} else {
+		additionalTextareaStyle = lipgloss.NewStyle()
+	}
+
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		chatContentStyle.Render(m.chathistory.View()),
-		textareaStyle.Width(m.textarea.Width()).Render(m.textarea.View()),
+		chatContentStyle.Inherit(additionalChatStyle).Render(m.chathistory.View()),
+		//textareaStyle.Width(m.textarea.Width()).Render(m.textarea.View()),
+		textareaStyle.
+			Inherit(additionalTextareaStyle).
+			Width(m.textarea.Width()).
+			Render(m.textarea.View()),
 	)
 
 	sidebarcontent := lipgloss.JoinVertical(lipgloss.Bottom,
 		m.sidebarbuttons.View(),
-		sidebarView,
+		sidebarStyle.Inherit(additionalSidebarStyle).Render(sidebarView),
 	)
 
 	return lipgloss.JoinHorizontal(
@@ -176,6 +225,7 @@ var chatContentStyle = lipgloss.NewStyle().
 
 var textareaStyle = lipgloss.NewStyle().
 	Border(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("2")).
 	Padding(0, 1).
 	Foreground(lipgloss.Color("111"))
+
+var sidebarStyle = lipgloss.NewStyle().Border(lipgloss.NormalBorder())

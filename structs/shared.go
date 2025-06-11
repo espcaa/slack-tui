@@ -18,7 +18,8 @@ type DMChannel struct {
 type Channel struct {
 	ChannelId     string
 	ChannelName   string
-	Mention_count int // Unread mention count
+	Mention_count int  // Unread mention count
+	IsPrivate     bool // Indicates if the channel is private
 }
 
 type Message struct {
