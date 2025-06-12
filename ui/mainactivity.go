@@ -5,6 +5,7 @@ import (
 	"slacktui/components"
 	"slacktui/structs"
 	"slacktui/utils"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -13,13 +14,27 @@ import (
 )
 
 type MainActivityModel struct {
-	chathistory    *components.ChatHistory
+	Chathistory    *components.ChatHistory
 	textarea       textarea.Model
-	sidebar        *components.Sidebar
+	Sidebar        *components.Sidebar
 	sidebarbuttons *components.SidebarButtonView
 	width          int
 	height         int
 	focusedPanel   string
+}
+
+func (m *MainActivityModel) AppendMessages(newMessage structs.Message) {
+	m.Chathistory.AppendMessage(newMessage)
+}
+
+func (m *MainActivityModel) GetSelectedChannelID() string {
+	if m.sidebarbuttons.Selected == 0 {
+		return m.Sidebar.ChannelSelected.ChannelId
+	}
+	if m.sidebarbuttons.Selected == 1 {
+		return m.Sidebar.DmSelected.DmID
+	}
+	return ""
 }
 
 type TickMsg struct{}
@@ -41,9 +56,9 @@ func loadUserDataCmd() tea.Cmd {
 	}
 }
 
-func loadMessagesCmd(channel structs.Channel) tea.Cmd {
+func loadMessagesCmd(channelid string) tea.Cmd {
 	return func() tea.Msg {
-		messages := utils.FetchChannelData(channel, 0, false)
+		messages := utils.FetchChannelData(channelid, 0, false)
 		return MessagesLoadedMsg{messages}
 	}
 }
@@ -62,12 +77,22 @@ func NewMainActivityModel() MainActivityModel {
 	ta.ShowLineNumbers = false
 
 	return MainActivityModel{
-		chathistory: components.NewChatHistory(),
+		Chathistory: components.NewChatHistory(),
 		textarea:    ta,
 		// With example channel and dm
-		sidebar:        components.NewSidebar([]structs.Channel{}, []structs.DMChannel{}),
+		Sidebar:        components.NewSidebar([]structs.Channel{}, []structs.DMChannel{}),
 		sidebarbuttons: components.NewSidebarButtonView(),
 		focusedPanel:   "textarea",
+	}
+}
+
+func initializeWebSocketCmd(m *MainActivityModel) tea.Cmd {
+	return func() tea.Msg {
+		err := utils.InitializeWebSocket(m)
+		if err != nil {
+			fmt.Println("Error initializing WebSocket:", err)
+		}
+		return nil
 	}
 }
 
@@ -77,6 +102,7 @@ func (m MainActivityModel) Init() tea.Cmd {
 		updateDBCmd(),
 		m.textarea.Focus(),
 		tea.Tick(time.Second, func(time.Time) tea.Msg { return TickMsg{} }),
+		initializeWebSocketCmd(&m),
 	)
 }
 
@@ -87,8 +113,8 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var chatCmd tea.Cmd
 
 	m.sidebarbuttons, sidebarCmd = m.sidebarbuttons.Update(msg)
-	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
-	m.chathistory, chatCmd = m.chathistory.Update(msg)
+	m.Sidebar, sidebarCmd = m.Sidebar.Update(msg)
+	m.Chathistory, chatCmd = m.Chathistory.Update(msg)
 
 	switch msg := msg.(type) {
 	case UserDataLoadedMsg:
@@ -96,69 +122,116 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fmt.Println("Error fetching user data:", msg.Err)
 			return m, nil
 		}
-		m.sidebar.ChannelItems = msg.Channels
-		m.sidebar.DmsItems = msg.DMs
-		m.sidebar.DmSelected = msg.DMs[0]
-		m.sidebar.ChannelSelected = msg.Channels[0]
-		m.sidebar.ChannelHovered = msg.Channels[0]
-		m.sidebar.DMHovered = msg.DMs[0]
-		m.sidebar.ResetOffsetToSelected()
-		m.sidebar.ReloadItems()
+		m.Sidebar.ChannelItems = msg.Channels
+		m.Sidebar.DmsItems = msg.DMs
+		m.Sidebar.DmSelected = msg.DMs[0]
+		m.Sidebar.ChannelSelected = msg.Channels[0]
+		m.Sidebar.ChannelHovered = msg.Channels[0]
+		m.Sidebar.DMHovered = msg.DMs[0]
+		m.Sidebar.ResetOffsetToSelected()
+		m.Sidebar.ReloadItems()
 		// Send the msg for loading messages
-		return m, loadMessagesCmd(m.sidebar.ChannelSelected)
+		return m, loadMessagesCmd(m.Sidebar.ChannelSelected.ChannelId)
 
 	case MessagesLoadedMsg:
-		m.chathistory.Messages = msg.Messages
-		m.chathistory.ReloadMessages()
+		m.Chathistory.Messages = msg.Messages
+		m.Chathistory.ReloadMessages()
 	case tea.WindowSizeMsg:
+
 		m.width = msg.Width - 6
 		m.height = msg.Height - 4
 
 		sidebarWidth := m.width / 4
 		contentWidth := m.width - sidebarWidth
 
-		m.chathistory.Width = m.width / 4 * 3
-		m.chathistory.Height = m.height - 8 // minus textarea height
+		m.Chathistory.Width = m.width / 4 * 3
+		m.Chathistory.Height = m.height - 8 // minus textarea height
 		m.textarea.SetWidth(contentWidth)
 		m.textarea.SetHeight(3)
+		m.Chathistory.GoToBottom()
 
 		cmd = m.textarea.Focus()
 	case tea.KeyMsg:
 		if m.focusedPanel == "chat" {
-			m.chathistory, chatCmd = m.chathistory.Update(msg)
+			m.Chathistory, chatCmd = m.Chathistory.Update(msg)
 		}
 		if msg.String() == "shift+tab" {
 			m.sidebarbuttons.Selected += 1
 			if m.sidebarbuttons.Selected >= 3 {
 				m.sidebarbuttons.Selected = 0
 			}
-			m.sidebar.Selected += 1
-			if m.sidebar.Selected >= 3 {
-				m.sidebar.Selected = 0
+			m.Sidebar.Selected += 1
+			if m.Sidebar.Selected >= 3 {
+				m.Sidebar.Selected = 0
 			}
 			// Run the update method to refresh the sidebar
-			m.sidebar.ResetOffsetToSelected()
-			m.sidebar, sidebarCmd = m.sidebar.Update(msg)
+			m.Sidebar.ResetOffsetToSelected()
+			m.Sidebar, sidebarCmd = m.Sidebar.Update(msg)
+			// Load messages for the selected channel or DM
+			if m.Sidebar.Selected == 0 {
+				m.Sidebar.ChannelSelected = m.Sidebar.ChannelHovered
+				m.Sidebar.ReloadItems()
+				m.Chathistory.ReloadMessages()
+				return m, loadMessagesCmd(m.Sidebar.ChannelSelected.ChannelId)
+			}
+			if m.Sidebar.Selected == 1 {
+				m.Sidebar.DmSelected = m.Sidebar.DMHovered
+				m.Sidebar.ReloadItems()
+				m.Chathistory.ReloadMessages()
+				return m, loadMessagesCmd(m.Sidebar.DmSelected.DmID)
+			}
 
 		}
 		if msg.String() == "tab" {
 			if m.focusedPanel == "chat" {
+				m.Chathistory.GoToBottom()
 				m.focusedPanel = "sidebar"
-				m.chathistory.Focused = false
-				m.sidebar.Focused = true
-				m.sidebar.ReloadItems()
+				m.Chathistory.Focused = false
+				m.Sidebar.Focused = true
+				m.Sidebar.ReloadItems()
 				m.textarea.Blur()
 			} else if m.focusedPanel == "sidebar" {
 				m.focusedPanel = "textarea"
-				m.chathistory.Focused = false
-				m.sidebar.Focused = false
+				m.Chathistory.Focused = false
+				m.Sidebar.Focused = false
 				m.textarea.Focus()
 			} else if m.focusedPanel == "textarea" {
 				m.focusedPanel = "chat"
-				m.chathistory.Focused = true
-				m.sidebar.Focused = false
-				m.chathistory.ReloadMessages()
+				m.Chathistory.Focused = true
+				m.Sidebar.Focused = false
+				m.Chathistory.ReloadMessages()
 				m.textarea.Blur()
+			}
+		}
+		if msg.String() == "enter" {
+
+			// refetch the messages for the selected channel if in sidebar or send a message
+
+			if m.focusedPanel == "sidebar" {
+				if m.sidebarbuttons.Selected == 0 {
+					m.Sidebar.ChannelSelected = m.Sidebar.ChannelHovered
+					m.Sidebar.ReloadItems()
+					m.Chathistory.ReloadMessages()
+					return m, loadMessagesCmd(m.Sidebar.ChannelSelected.ChannelId)
+				} else if m.sidebarbuttons.Selected == 1 {
+					m.Sidebar.DmSelected = m.Sidebar.DMHovered
+					m.Sidebar.ReloadItems()
+					m.Chathistory.ReloadMessages()
+					return m, loadMessagesCmd(m.Sidebar.DmSelected.DmID)
+				}
+			} else if m.focusedPanel == "textarea" {
+				message := strings.ReplaceAll(m.textarea.Value(), "\n", "")
+				if message == "" {
+					break
+				}
+				if m.Sidebar.Selected == 0 {
+
+					utils.SendMessage(message, m.Sidebar.ChannelSelected.ChannelId)
+					m.textarea.SetValue("")
+				} else if m.Sidebar.Selected == 1 {
+					utils.SendMessage(message, m.Sidebar.DmSelected.DmID)
+					m.textarea.SetValue("")
+				}
 			}
 		}
 
@@ -173,7 +246,7 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MainActivityModel) View() string {
-	sidebarView := m.sidebar.View()
+	sidebarView := m.Sidebar.View()
 
 	var additionalChatStyle lipgloss.Style
 	if m.focusedPanel == "chat" {
@@ -196,7 +269,7 @@ func (m MainActivityModel) View() string {
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		chatContentStyle.Inherit(additionalChatStyle).Render(m.chathistory.View()),
+		chatContentStyle.Inherit(additionalChatStyle).Render(m.Chathistory.View()),
 		//textareaStyle.Width(m.textarea.Width()).Render(m.textarea.View()),
 		textareaStyle.
 			Inherit(additionalTextareaStyle).

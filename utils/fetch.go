@@ -11,12 +11,12 @@ import (
 	"strings"
 )
 
-func FetchChannelData(channel structs.Channel, oldest int, useoldest bool) []structs.Message {
+func FetchChannelData(channelid string, oldest int, useoldest bool) []structs.Message {
 	// Fetch messages for the given channel
 	var messages []structs.Message
 
 	params := url.Values{}
-	params.Set("channel", channel.ChannelId)
+	params.Set("channel", channelid)
 	params.Set("limit", "100")
 	if useoldest {
 		params.Set("latest", strconv.FormatInt(int64(oldest), 10))
