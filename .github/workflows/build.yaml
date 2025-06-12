@@ -20,14 +20,11 @@ jobs:
           go-version: '1.22'
       - name: Build for ${{ matrix.goos }}-${{ matrix.goarch }}
         run: |
-          export GOOS=${{ matrix.goos }}
-          export GOARCH=${{ matrix.goarch }}
-          mkdir -p build/${GOOS}_${GOARCH}
           EXT=""
-          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
-          go build -o build/${GOOS}_${GOARCH}/slacktui$EXT
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o build/${{ matrix.goos }}_${{ matrix.goarch }}/slacktui${EXT}
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: slacktui-${{ matrix.goos }}-${{ matrix.goarch }}
           path: build/${{ matrix.goos }}_${{ matrix.goarch }}
