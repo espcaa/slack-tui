@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+
+	_ "modernc.org/sqlite" // Import the SQLite driver
 )
 
 // GetNameFromID retrieves the name associated with a given ID from the database.
@@ -18,7 +20,7 @@ func GetNameFromID(id string, realname bool) (string, error) {
 
 	// Construct the database path
 	dbPath := filepath.Join(home, ".config", "slack-tui", "users.sqlite")
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 
 	if err != nil {
 		log.Printf("Error opening database: %v", err)

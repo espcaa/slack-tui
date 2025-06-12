@@ -9,7 +9,7 @@ import (
 	"slacktui/config"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func UpdateDB() (success bool) {
@@ -26,7 +26,7 @@ func UpdateDB() (success bool) {
 	}
 
 	dbPath := filepath.Join(home, ".config", "slack-tui", "users.sqlite")
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return false
 	}
