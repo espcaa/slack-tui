@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-
 	var startView string = "setup"
 
 	cfg, err := config.LoadConfig()
