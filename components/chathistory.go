@@ -64,13 +64,18 @@ func (c *ChatHistory) RenderMessages() string {
 		var lastTimestamp int64
 
 		for _, msg := range c.Messages {
+			var aditionalYellowText string
+
+			if msg.ThreadBroadcast {
+				aditionalYellowText = " (reply to a thread broadcasted to the channel)"
+			}
 			if msg.SenderName == "" {
 				msg.SenderName, _ = utils.GetNameFromID(msg.SenderId, false)
 			}
 			// Check if the sender is the same and the time difference is within a threshold (e.g., 5 minutes)
-			if msg.SenderName != lastSender || msg.Timestamp-lastTimestamp > 300 {
+			if msg.SenderName != lastSender || msg.Timestamp-lastTimestamp > 300 || msg.ThreadBroadcast {
 				// Render the username and timestamp for a new group
-				content += usernameStyle.Render(msg.SenderName) + " " + clockStyle.Render(utils.TimestampToString(strconv.FormatInt(msg.Timestamp, 10))) + "\n"
+				content += usernameStyle.Render(msg.SenderName) + " " + clockStyle.Render(utils.TimestampToString(strconv.FormatInt(msg.Timestamp, 10))) + " " + yellowTextStyle.Render(aditionalYellowText) + "\n"
 			}
 			content += messageStyle.Width(c.Width).Render(html.UnescapeString(msg.Content)) + "\n"
 			lastSender = msg.SenderName
@@ -90,6 +95,7 @@ func (c *ChatHistory) ReloadMessages() {
 var usernameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
 var messageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 var clockStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Italic(true)
+var yellowTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Italic(true).Bold(true)
 
 func (c *ChatHistory) GoToBottom() {
 	// Scroll to the bottom of the chat history
@@ -101,5 +107,33 @@ func (c *ChatHistory) AppendMessage(messages structs.Message) {
 	c.ReloadMessages() // Refresh the viewport to show the new message
 	if !c.Focused {
 		c.GoToBottom() // Automatically scroll to the bottom if not focused
+	}
+}
+
+func (c *ChatHistory) DeleteMessage(messageid string) {
+	// Find the message by ID and remove it from the chat history
+	for i, msg := range c.Messages {
+		if msg.MessageId == messageid {
+			c.Messages = append(c.Messages[:i], c.Messages[i+1:]...)
+			c.ReloadMessages() // Refresh the viewport to reflect the deletion
+			return
+		}
+		if !c.Focused {
+			c.GoToBottom() // Automatically scroll to the bottom if not focused
+		}
+	}
+}
+
+func (c *ChatHistory) ModifyMessage(messageid, content string) {
+	// Find the message by ID and update its content
+	for i, msg := range c.Messages {
+		if msg.MessageId == messageid {
+			c.Messages[i].Content = content
+			c.ReloadMessages() // Refresh the viewport to reflect the modification
+			return
+		}
+		if !c.Focused {
+			c.GoToBottom() // Automatically scroll to the bottom if not focused
+		}
 	}
 }

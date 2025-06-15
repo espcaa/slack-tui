@@ -23,8 +23,16 @@ type MainActivityModel struct {
 	focusedPanel   string
 }
 
-func (m *MainActivityModel) AppendMessages(newMessage structs.Message) {
+func (m *MainActivityModel) AppendMessages(newMessage structs.Message, threadbroadcast bool) {
 	m.Chathistory.AppendMessage(newMessage)
+}
+
+func (m *MainActivityModel) DeleteMessage(messageID string) {
+	m.Chathistory.DeleteMessage(messageID)
+}
+
+func (m *MainActivityModel) ModifyMessage(messageID, newContent string) {
+	m.Chathistory.ModifyMessage(messageID, newContent)
 }
 
 func (m *MainActivityModel) GetSelectedChannelID() string {
@@ -236,7 +244,16 @@ func (m MainActivityModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case TickMsg:
-		cmd = tea.Tick(time.Second*60, func(time.Time) tea.Msg {
+		// Check if the websocket is still on and if not, reinitialize it
+		if !utils.CheckWebSocketConnection() {
+			return m, tea.Batch(
+				initializeWebSocketCmd(&m),
+				tea.Tick(time.Second*1, func(time.Time) tea.Msg {
+					return TickMsg{}
+				}),
+			)
+		}
+		cmd = tea.Tick(time.Second*1, func(time.Time) tea.Msg {
 			return TickMsg{}
 		})
 	}

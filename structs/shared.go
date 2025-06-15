@@ -23,9 +23,10 @@ type Channel struct {
 }
 
 type Message struct {
-	MessageId  string
-	SenderId   string
-	SenderName string
-	Content    string
-	Timestamp  int64 // Unix timestamp
+	MessageId       string
+	SenderId        string
+	SenderName      string
+	Content         string
+	Timestamp       int64 // Unix timestamp
+	ThreadBroadcast bool  // Indicates if the message is a thread broadcast
 }

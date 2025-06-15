@@ -77,12 +77,15 @@ func FetchChannelData(channelid string, oldest int, useoldest bool) []structs.Me
 			senderName = m.User // Fallback to user ID if name retrieval fails
 		}
 
+		isThreadBroadcast := m.Subtype == "thread_broadcast"
+
 		messages = append(messages, structs.Message{
-			MessageId:  m.Ts,
-			SenderId:   m.User,
-			SenderName: senderName,
-			Content:    m.Text,
-			Timestamp:  sec,
+			MessageId:       m.Ts,
+			SenderId:        m.User,
+			SenderName:      senderName,
+			Content:         m.Text,
+			Timestamp:       sec,
+			ThreadBroadcast: isThreadBroadcast,
 		})
 	}
 

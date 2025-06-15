@@ -7,16 +7,23 @@ A terminal user interface for Slack, built with go and the bubble tea framework.
 
 ## How to install and use it!
 
-For now, just grab the latest release from the [releases page](https://github.com/espcaa/slack-tui/releases)
-and simply run it in your terminal.
+Use the go package manager to install the package:
 
 ```bash
-./slack-tui
+go install github.com/espcaa/slacktui-extension@latest
 ```
+
+Then, you can run the extension with:
+
+```bash
+slacktui
+```
+
+_Note: you need to have the GOPATH in your path for this to work. If you don't know how to do that, check out the [go documentation](https://go.dev/wiki/GOPATH)._
 
 ## How to get your magic string??
 
-For now the extension isn't published to the mozilla add-ons store (should be verified soon) so head over to the [extension repo](https://github.com/espcaa/slacktui-extension) and follow tthe instructions there!
+Just get the *firefox* extension on the [extension page](https://addons.mozilla.org/en-US/firefox/addon/slacktui-wizzard/)! Then follow tthe instructions there!
 
 ## Simple keybinds & tips
 
@@ -27,3 +34,14 @@ To change active channel/dm, switch to the sidebar panel and use arrows+enter to
 ## There's a bug aaaaa
 
 yeah. probably. :sob:
+
+## Coming soon, hopefully
+
+- [ ] Threads
+- [ ] Reactions
+- [ ] Slash commands
+- [ ] File uploads
+- [ ] Notifications
+- [ ] Search
+- [ ] Settings
+- [ ] Quick switcher for channels/dms/...
