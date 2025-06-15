@@ -12,6 +12,11 @@ Use the go package manager to install the package:
 ```bash
 go install github.com/espcaa/slacktui-extension@latest
 ```
+Or if you use arch linux, you can install it with the AUR package:
+
+```bash
+yay -S slacktui-git
+```
 
 Then, you can run the extension with:
 
