@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slacktui/config"
-	"slacktui/structs"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/espcaa/slack-tui/config"
+	"github.com/espcaa/slack-tui/structs"
 
 	"github.com/gorilla/websocket"
 )

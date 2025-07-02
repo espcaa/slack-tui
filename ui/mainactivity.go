@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"slacktui/components"
-	"slacktui/structs"
-	"slacktui/utils"
 	"strings"
 	"time"
+
+	"github.com/espcaa/slack-tui/components"
+	"github.com/espcaa/slack-tui/structs"
+	"github.com/espcaa/slack-tui/utils"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"

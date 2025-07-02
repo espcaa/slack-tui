@@ -1,7 +1,7 @@
 package components
 
 import (
-	"slacktui/structs"
+	"github.com/espcaa/slack-tui/structs"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"

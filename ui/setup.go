@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"slacktui/config"
+	"github.com/espcaa/slack-tui/config"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"

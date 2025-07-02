@@ -1,9 +1,10 @@
 package components
 
 import (
-	"slacktui/structs"
-	"slacktui/utils"
 	"strconv"
+
+	"github.com/espcaa/slack-tui/structs"
+	"github.com/espcaa/slack-tui/utils"
 
 	"html"
 

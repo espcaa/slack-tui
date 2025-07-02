@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"slacktui/config"
+
+	"github.com/espcaa/slack-tui/config"
 )
 
 func SendMessage(message string, channel string) error {

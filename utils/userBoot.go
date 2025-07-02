@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"slacktui/config"
-	"slacktui/structs"
 	"sort"
 	"time"
+
+	"github.com/espcaa/slack-tui/config"
+	"github.com/espcaa/slack-tui/structs"
 )
 
 type Channel struct {

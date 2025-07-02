@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"slacktui/config"
-	"slacktui/structs"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/espcaa/slack-tui/config"
+	"github.com/espcaa/slack-tui/structs"
 )
 
 func FetchChannelData(channelid string, oldest int, useoldest bool) []structs.Message {

@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
-	"slacktui/config"
-	"slacktui/ui"
+
+	"github.com/espcaa/slack-tui/config"
+	"github.com/espcaa/slack-tui/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

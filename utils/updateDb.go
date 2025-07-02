@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slacktui/config"
 	"time"
+
+	"github.com/espcaa/slack-tui/config"
 
 	_ "modernc.org/sqlite"
 )
