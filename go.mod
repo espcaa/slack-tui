@@ -1,4 +1,4 @@
-module slacktui
+module github.com/espcaa/slack-tui
 
 go 1.24.0
 
