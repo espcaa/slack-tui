@@ -10,7 +10,7 @@ A terminal user interface for Slack, built with go and the bubble tea framework.
 Use the go package manager to install the package:
 
 ```bash
-go install github.com/espcaa/slacktui-extension@latest
+go install github.com/espcaa/slack-tui@latest
 ```
 Or if you use arch linux, you can install it with the AUR package:
 
