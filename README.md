@@ -1,5 +1,8 @@
 
 ![icon-128](https://github.com/user-attachments/assets/1156c590-abe2-42f3-ac00-cf52f2dae71f)
+\
+\
+![Image 3030x1856](https://github.com/user-attachments/assets/da4c6e8e-17d1-41f2-9c94-67bbce860310)
 
 # Slack TUI
 
